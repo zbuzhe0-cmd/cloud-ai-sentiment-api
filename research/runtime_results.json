@@ -1,0 +1,23 @@
+[
+  {
+    "runtime": "PyTorch FP32",
+    "mean_ms": 1.987,
+    "p50_ms": 1.982,
+    "p95_ms": 2.331,
+    "model_size_mb": 117.0
+  },
+  {
+    "runtime": "ONNX FP32",
+    "mean_ms": 0.597,
+    "p50_ms": 0.582,
+    "p95_ms": 0.741,
+    "model_size_mb": 111.47
+  },
+  {
+    "runtime": "ONNX INT8",
+    "mean_ms": 0.516,
+    "p50_ms": 0.509,
+    "p95_ms": 0.574,
+    "model_size_mb": 28.03
+  }
+]
