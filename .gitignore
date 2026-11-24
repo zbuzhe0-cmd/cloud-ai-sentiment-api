@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 .env
 research/models/
+research/models_kz/
 

@@ -1,32 +1,43 @@
 import os
 from time import perf_counter
 
-import torch
+import numpy as np
+import onnxruntime as ort
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoTokenizer
 
 
-MODEL_NAME = os.getenv("MODEL_NAME", "seara/rubert-tiny2-russian-sentiment")
+MODEL_NAME = "R3iwan/kazakh-sentiment-bert"
+MODEL_PATH = os.getenv("MODEL_PATH", "/app/kazakh_sentiment_uint8.onnx")
+TOKENIZER_PATH = os.getenv("TOKENIZER_PATH", "/app/tokenizer")
+LABELS = ["negative", "neutral", "positive"]
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-model.eval()
+tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
+session = ort.InferenceSession(
+    MODEL_PATH,
+    providers=["CPUExecutionProvider"],
+    sess_options=ort.SessionOptions(),
+)
 
-app = FastAPI(title="Cloud AI Sentiment API", version="2.0.0")
+app = FastAPI(
+    title="Қазақ тіліндегі тоналдылықты талдау API",
+    description="ONNX QUInt8 форматындағы қазақша BERT моделі",
+    version="3.0.0",
+)
 
 
 class PredictionRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=1000)
+    text: str = Field(min_length=1, max_length=1000, description="Қазақша мәтін")
 
 
-def normalize_label(label: str) -> str:
-    normalized = label.lower().replace("_", " ")
-    if "negative" in normalized:
-        return "negative"
-    if "positive" in normalized:
-        return "positive"
-    return "neutral"
+@app.get("/")
+def root():
+    return {
+        "service": "Қазақ тіліндегі тоналдылықты талдау",
+        "documentation": "/docs",
+        "health": "/health",
+    }
 
 
 @app.get("/health")
@@ -34,33 +45,32 @@ def health():
     return {
         "status": "ok",
         "model": MODEL_NAME,
-        "framework": "PyTorch + Transformers",
+        "framework": "ONNX Runtime QUInt8",
+        "language": "kk",
     }
 
 
 @app.post("/predict")
 def predict(payload: PredictionRequest):
     started = perf_counter()
-    inputs = tokenizer(
+    encoded = tokenizer(
         payload.text,
-        return_tensors="pt",
+        return_tensors="np",
         truncation=True,
-        max_length=512,
+        max_length=256,
     )
-    with torch.inference_mode():
-        logits = model(**inputs).logits[0]
-        probabilities = torch.softmax(logits, dim=-1)
-
-    best_index = int(torch.argmax(probabilities).item())
-    confidence = float(probabilities[best_index].item())
-    raw_label = str(model.config.id2label[best_index])
+    feeds = {name: value.astype(np.int64) for name, value in encoded.items()}
+    logits = session.run(None, feeds)[0][0]
+    shifted = logits - np.max(logits)
+    probabilities = np.exp(shifted) / np.exp(shifted).sum()
+    best_index = int(np.argmax(probabilities))
     elapsed_ms = (perf_counter() - started) * 1000
-
     return {
-        "sentiment": normalize_label(raw_label),
-        "raw_label": raw_label,
-        "confidence": round(confidence, 4),
+        "sentiment": LABELS[best_index],
+        "raw_label": LABELS[best_index],
+        "confidence": round(float(probabilities[best_index]), 4),
         "inference_ms": round(elapsed_ms, 2),
         "model": MODEL_NAME,
+        "runtime": "ONNX Runtime QUInt8",
     }
 

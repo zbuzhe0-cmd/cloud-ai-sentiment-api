@@ -3,20 +3,19 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080 \
-    MODEL_NAME=seara/rubert-tiny2-russian-sentiment \
+    MODEL_PATH=/app/kazakh_sentiment_uint8.onnx \
+    TOKENIZER_PATH=/app/tokenizer \
     HF_HOME=/app/model_cache
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir typing-extensions filelock sympy networkx jinja2 fsspec && \
-    pip install --no-cache-dir --no-deps \
-      --index-url https://download.pytorch.org/whl/cpu torch==2.5.1
+    pip install --no-cache-dir -r requirements.txt
 
-COPY download_model.py .
-RUN python download_model.py
+COPY download_tokenizer.py .
+RUN python download_tokenizer.py && \
+    python -c "import urllib.request; urllib.request.urlretrieve('https://github.com/zbuzhe0-cmd/cloud-ai-sentiment-api/releases/download/v3-kazakh/kazakh_sentiment_uint8.onnx', '/app/kazakh_sentiment_uint8.onnx')"
 
 COPY app.py .
 
