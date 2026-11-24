@@ -3,7 +3,7 @@ from time import perf_counter
 
 import numpy as np
 import onnxruntime as ort
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from transformers import AutoTokenizer
 
@@ -52,6 +52,11 @@ def health():
 
 @app.post("/predict")
 def predict(payload: PredictionRequest):
+    if len(payload.text.split()) < 3:
+        raise HTTPException(
+            status_code=422,
+            detail="Модельге контекст қажет. Кемінде үш сөзден тұратын толық пікір енгізіңіз.",
+        )
     started = perf_counter()
     encoded = tokenizer(
         payload.text,
