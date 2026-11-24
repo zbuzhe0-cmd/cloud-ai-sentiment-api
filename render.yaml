@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: cloud-ai-sentiment
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_NAME
+        value: seara/rubert-tiny2-russian-sentiment
